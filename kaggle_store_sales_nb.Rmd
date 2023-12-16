@@ -38,12 +38,20 @@ output: html_notebook
 
 # Load Packages and Data
 ```{r}
-library(tidyverse)
-library(tsibble)
-library(fable)
-library(fpp3)
-train = read_csv('./data/train.csv')
-test = read_csv('./data/test.csv')
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(tsibble))
+suppressPackageStartupMessages(library(fable))
+suppressPackageStartupMessages(library(fpp3))
+
+train <- readr::read_csv('./data/train.csv', 
+                 col_types = cols(.default = "d", 
+                                  date = "D", 
+                                  family = "c"))
+
+test <- readr::read_csv('./data/test.csv', 
+                 col_types = cols(.default = "d", 
+                                  date = "D", 
+                                  family = "c"))
 ```
 
 # EDA
@@ -52,13 +60,15 @@ str(train)
 ```
 Convert to tsibble:
 ```{r}
-train <- tsibble(train, index = date, key = c(store_nbr, family))
+train <- tsibble(train, 
+                 index = date, 
+                 key = c(store_nbr, family))
 str(train, max.level = 2)
 ```
 
 ```{r}
 # review zero sales; do we need these rows?; we clean it up later with fill_gaps()
-arrange(train[train$sales == 0,], store_nbr)
+dplyr::arrange(train[train$sales == 0,], store_nbr)
 ```
 
 
@@ -92,30 +102,28 @@ train |>
        y = "Sales")
 ```
 
-### Decompose
+### Decomposition Table STL
 ```{r}
 train_consolidated <- 
   train |>
   summarise(sales = sum(sales)) |>
   fill_gaps(sales = 0)
 
+# fill_gaps: 2013-12-25 did not exist in the original 'train' dataset, but was created with zero values by the fill_gaps function
+train[train$date == "2013-12-25",]
 train_consolidated[train_consolidated$sales == 0,]
 
+# create STL decomposition model
 dcmp <- train_consolidated |>
-  model(stl = STL(sales))
+  fabletools::model(stl = STL(sales))
 
-components(dcmp) |>
+fabletools::components(dcmp)
+```
+
+Plot decomposition model:
+```{r}
+fabletools::components(dcmp) |>
   autoplot()
-
-is.ts(train_consolidated)
-is.ts(us_employment)
-is_tsibble(us_employment)
-frequency(us_employment)
-frequency(train_consolidated)
-us_employment
-
-  # model(STL(sales)) |>
-  # components()
 ```
 
 # Train Model
